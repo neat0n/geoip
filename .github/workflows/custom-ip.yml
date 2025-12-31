@@ -1,9 +1,9 @@
 name: Build Custom GeoIP
 
 on:
-  workflow_dispatch:  # Кнопка ручного запуска
+  workflow_dispatch:  # Ручной запуск
   schedule:
-    - cron: "0 3 * * 3" # Автозапуск раз в неделю (в среду в 3 утра)
+    - cron: "0 3 * * 3" # Раз в неделю
 
 jobs:
   build:
@@ -12,34 +12,38 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Download Tools & Data
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Install Tools
         run: |
-          # 1. Качаем утилиту v2dat (для распаковки/упаковки)
-          wget https://github.com/urlesistiana/v2dat/releases/download/v0.0.6/v2dat_linux_amd64 -O v2dat
-          chmod +x v2dat
+          # Собираем v2dat из исходников (самый надежный способ)
+          go install github.com/urlesistiana/v2dat@latest
           
-          # 2. Качаем официальный полный geoip.dat
+          # Качаем официальный geoip.dat
           wget https://github.com/v2fly/geoip/releases/latest/download/geoip.dat -O geoip.dat
 
       - name: Unpack GeoIP
         run: |
-          # Распаковываем базу в папку data
-          ./v2dat unpack geoip.dat -o ./data
+          # v2dat теперь установлен в систему, используем его
+          v2dat unpack geoip.dat -o ./data
 
       - name: Filter Countries (Clean up)
         shell: pwsh
         run: |
-          # === НАСТРОЙКИ: ЧТО ОСТАВЛЯЕМ ===
+          # === ЧТО ОСТАВЛЯЕМ ===
           $KeepList = @(
-              "ru", "cn", "ir",
+              "ru", "cn", "ir"
               "private"
           )
           
-          # === МАГИЯ ОЧИСТКИ ===
+          # === ОЧИСТКА ===
           Set-Location ./data
           $CountBefore = (Get-ChildItem).Count
           
-          # Удаляем всё, чего нет в списке
+          # Удаляем лишнее
           Get-ChildItem -File | Where-Object { $KeepList -notcontains $_.Name } | Remove-Item -Force
           
           $CountAfter = (Get-ChildItem).Count
@@ -49,7 +53,7 @@ jobs:
       - name: Pack Custom GeoIP
         run: |
           # Собираем обратно
-          ./v2dat pack -o geoip-custom.dat ./data
+          v2dat pack -o geoip-custom.dat ./data
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
