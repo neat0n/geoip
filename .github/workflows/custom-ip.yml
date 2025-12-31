@@ -1,9 +1,9 @@
 name: Build Custom GeoIP
 
 on:
-  workflow_dispatch:  # Ручной запуск
+  workflow_dispatch:
   schedule:
-    - cron: "0 3 * * 3" # Раз в неделю
+    - cron: "0 3 * * 3"
 
 jobs:
   build:
@@ -17,43 +17,58 @@ jobs:
         with:
           go-version: '1.21'
 
-      - name: Install Tools
+      - name: Install Tools & Download Data
         run: |
-          # Собираем v2dat из исходников (самый надежный способ)
+          # Устанавливаем v2dat
           go install github.com/urlesistiana/v2dat@latest
           
-          # Качаем официальный geoip.dat
+          # Качаем базу
           wget https://github.com/v2fly/geoip/releases/latest/download/geoip.dat -O geoip.dat
 
       - name: Unpack GeoIP
         run: |
-          # v2dat теперь установлен в систему, используем его
-          v2dat unpack geoip.dat -o ./data
+          # 1. Создаем папку руками
+          mkdir -p data
+          
+          # 2. Запускаем v2dat по полному пути
+          $(go env GOPATH)/bin/v2dat unpack geoip.dat -o ./data
+          
+          # 3. Проверка (выведет список файлов в лог)
+          echo "Files inside data folder:"
+          ls -F ./data | head -n 20
 
       - name: Filter Countries (Clean up)
         shell: pwsh
         run: |
-          # === ЧТО ОСТАВЛЯЕМ ===
+          # === НАСТРОЙКИ: ЧТО ОСТАВЛЯЕМ ===
           $KeepList = @(
-              "ru", "cn", "ir"
-              "private"
+              "ru", "cn", "ir",          # Страны
+              "private",                 # Локальная сеть
+              "telegram", "google",      # Сервисы
+              "netflix", "twitter", "facebook"
           )
           
           # === ОЧИСТКА ===
+          # Проверяем, что папка существует
+          if (!(Test-Path -Path "./data")) {
+              Write-Error "Папка data не найдена! Распаковка не удалась."
+              exit 1
+          }
+
           Set-Location ./data
           $CountBefore = (Get-ChildItem).Count
+          Write-Host "Всего файлов до очистки: $CountBefore"
           
           # Удаляем лишнее
           Get-ChildItem -File | Where-Object { $KeepList -notcontains $_.Name } | Remove-Item -Force
           
           $CountAfter = (Get-ChildItem).Count
-          Write-Host "Было файлов: $CountBefore"
           Write-Host "Осталось файлов: $CountAfter"
 
       - name: Pack Custom GeoIP
         run: |
-          # Собираем обратно
-          v2dat pack -o geoip-custom.dat ./data
+          # Собираем обратно по полному пути
+          $(go env GOPATH)/bin/v2dat pack -o geoip-custom.dat ./data
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
