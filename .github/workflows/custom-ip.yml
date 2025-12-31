@@ -27,20 +27,21 @@ jobs:
 
       - name: Unpack GeoIP
         run: |
-          # 1. Создаем папку руками
+          # 1. Создаем папку
           mkdir -p data
           
-          # 2. Запускаем v2dat по полному пути
-          $(go env GOPATH)/bin/v2dat unpack geoip.dat -o ./data
+          # 2. Распаковываем (ДОБАВЛЕНО слово geoip)
+          # Синтаксис: unpack geoip <файл> -o <папка>
+          $(go env GOPATH)/bin/v2dat unpack geoip geoip.dat -o ./data
           
-          # 3. Проверка (выведет список файлов в лог)
+          # 3. Проверка
           echo "Files inside data folder:"
           ls -F ./data | head -n 20
 
       - name: Filter Countries (Clean up)
         shell: pwsh
         run: |
-          # === НАСТРОЙКИ: ЧТО ОСТАВЛЯЕМ ===
+          # === ЧТО ОСТАВЛЯЕМ ===
           $KeepList = @(
               "ru", "cn", "ir",          # Страны
               "private",                 # Локальная сеть
@@ -49,7 +50,6 @@ jobs:
           )
           
           # === ОЧИСТКА ===
-          # Проверяем, что папка существует
           if (!(Test-Path -Path "./data")) {
               Write-Error "Папка data не найдена! Распаковка не удалась."
               exit 1
@@ -67,8 +67,8 @@ jobs:
 
       - name: Pack Custom GeoIP
         run: |
-          # Собираем обратно по полному пути
-          $(go env GOPATH)/bin/v2dat pack -o geoip-custom.dat ./data
+          # Собираем обратно (ДОБАВЛЕНО слово geoip)
+          $(go env GOPATH)/bin/v2dat pack geoip -o geoip-custom.dat ./data
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
